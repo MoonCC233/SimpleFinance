@@ -1,0 +1,22 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# 临时/测试文件
+fix_*.js
+temp.zip
+test_newline.xlsx
+_tmp_xlsx/
+
+# 散落的 APK 构建产物
+*.apk
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

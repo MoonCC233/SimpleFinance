@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#b8472f">
+  <title>膏方提成计算</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="header-top">
+        <h1>膏方提成</h1>
+        <div class="month-box">
+          <button id="monthPickerBtn" type="button" class="month-picker-btn">
+          <span id="monthLabel">--</span>
+          <svg class="chev-down" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+          <button id="newMonthBtn" type="button" title="新建月份">＋</button>
+          <button id="delMonthBtn" type="button" title="删除本月" aria-label="删除本月">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <div class="sum-item"><span class="sum-label">总售价</span><span class="sum-val" id="sumSales">¥0</span></div>
+        <div class="sum-item"><span class="sum-label">总成本</span><span class="sum-val" id="sumCost">¥0</span></div>
+        <div class="sum-item"><span class="sum-label">出库数</span><span class="sum-val" id="sumOut">0</span></div>
+      </div>
+    </header>
+
+    <div class="scroll-wrap">
+      <nav class="toolbar">
+        <button id="addProdBtn" type="button">＋ 添加品种</button>
+        <button id="exportBtn" type="button">导出备份</button>
+        <button id="importBtn" type="button">导入恢复</button>
+        <input id="importFile" type="file" accept=".xlsx,.xls" hidden>
+      </nav>
+
+      <div class="empty-tip" id="emptyTip">暂无品种，点「＋ 添加品种」开始</div>
+
+      <main class="product-list" id="productList"></main>
+
+      <section class="expenses">
+        <h2>费用</h2>
+        <div class="expense-row">
+          <label>运费</label>
+          <input id="freight" type="number" inputmode="decimal" placeholder="0" min="0" step="0.1">
+          <span>元</span>
+        </div>
+        <div class="expense-row">
+          <label>额外支出</label>
+          <input id="extra" type="number" inputmode="decimal" placeholder="0" min="0" step="0.1">
+          <span>元</span>
+        </div>
+        <div class="expense-row">
+          <label>提成比例</label>
+          <input id="rate" type="number" inputmode="decimal" value="30" min="0" step="1">
+          <span>%</span>
+        </div>
+      </section>
+
+      <section class="notes-box">
+        <label>本月备注</label>
+        <textarea id="notes" rows="3" placeholder="赠品、未付款、客户记录等..."></textarea>
+      </section>
+    </div>
+
+    <footer class="result-bar">
+      <div class="result-detail">
+        <div><span>毛利</span><b id="profit">¥0</b></div>
+        <div><span>提成(<i id="rateLabel">30</i>%)</span><b id="commission" class="commission">¥0</b></div>
+      </div>
+      <div class="result-actions">
+        <button id="resetBtn" type="button">清空本月出库</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- 添加/编辑品种弹窗 -->
+  <div class="modal-mask" id="prodModal">
+    <div class="modal">
+      <div class="modal-title" id="modalTitle">添加品种</div>
+      <div class="modal-field">
+        <label>品种名称</label>
+        <input id="pName" type="text" placeholder="如：五指毛桃">
+      </div>
+      <div class="modal-field">
+        <label>单位成本</label>
+        <input id="pCost" type="number" inputmode="decimal" value="170" min="0" step="1">
+      </div>
+      <div class="modal-field">
+        <label>售价档</label>
+        <div id="priceTiers"></div>
+        <button id="addTierBtn" type="button" class="tier-add">＋ 添加售价档</button>
+      </div>
+      <div class="modal-actions">
+        <button id="prodDeleteBtn" type="button" class="btn-danger" hidden>删除品种</button>
+        <button id="prodCancelBtn" type="button" class="btn-ghost">取消</button>
+        <button id="prodSaveBtn" type="button" class="btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中文确认弹窗 -->
+  <div class="modal-mask" id="confirmModal">
+    <div class="modal confirm-modal">
+      <div class="modal-title" id="confirmMsg">确认？</div>
+      <div class="modal-actions">
+        <button id="confirmCancel" type="button" class="btn-ghost">取消</button>
+        <button id="confirmOk" type="button" class="btn-primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 月份选择弹窗 -->
+  <div class="modal-mask" id="monthPickerModal">
+    <div class="modal month-picker-modal">
+      <div class="modal-title">选择月份</div>
+      <div class="month-list" id="monthList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="monthPickerCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/capacitor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

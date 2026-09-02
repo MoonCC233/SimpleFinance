@@ -1,0 +1,115 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare signing keystore
+        id: keystore
+        env:
+          KS_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          KS_STOREPASS: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KS_KEYPASS: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_BASE64" ]; then
+            echo "使用仓库 Secrets 配置的签名 keystore"
+            echo "$KS_BASE64" | base64 -d > release.keystore
+            echo "ks=release.keystore" >> "$GITHUB_OUTPUT"
+            echo "storepass=$KS_STOREPASS" >> "$GITHUB_OUTPUT"
+            echo "alias=$KS_ALIAS" >> "$GITHUB_OUTPUT"
+            echo "keypass=$KS_KEYPASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "未配置签名 Secrets，生成临时 debug keystore 用于本次签名"
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "ks=debug.keystore" >> "$GITHUB_OUTPUT"
+            echo "storepass=android" >> "$GITHUB_OUTPUT"
+            echo "alias=androiddebugkey" >> "$GITHUB_OUTPUT"
+            echo "keypass=android" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sign APK
+        env:
+          KS: ${{ steps.keystore.outputs.ks }}
+          STOREPASS: ${{ steps.keystore.outputs.storepass }}
+          ALIAS: ${{ steps.keystore.outputs.alias }}
+          KEYPASS: ${{ steps.keystore.outputs.keypass }}
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)
+          UNSIGNED=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          ALIGNED=android/app/build/outputs/apk/release/app-release-aligned.apk
+          SIGNED=android/app/build/outputs/apk/release/app-release.apk
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KS" \
+            --ks-pass pass:"$STOREPASS" \
+            --ks-key-alias "$ALIAS" \
+            --key-pass pass:"$KEYPASS" \
+            --out "$SIGNED" "$ALIGNED"
+          echo "== 签名校验 =="
+          "$BUILD_TOOLS/apksigner" verify --verbose "$SIGNED" | head -n 6
+
+      - name: Rename APK
+        id: rename
+        run: |
+          VERSION="${GITHUB_REF_NAME:-${GITHUB_SHA::7}}"
+          cp android/app/build/outputs/apk/release/app-release.apk "膏方提成-$VERSION.apk"
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          ls -lh 膏方提成-*.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaofang-apk-${{ steps.rename.outputs.name }}
+          path: 膏方提成-*.apk
+          if-no-files-found: error
+
+      - name: Publish to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: 膏方提成-*.apk
+          name: ${{ steps.rename.outputs.name }}
+          generate_release_notes: true

@@ -1,0 +1,11 @@
+{
+  "appId": "com.gaofang.commission",
+  "appName": "膏方提成",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#fbf5ec"
+  }
+}

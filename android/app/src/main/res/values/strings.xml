@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">膏方提成</string>
+    <string name="title_activity_main">膏方提成</string>
+    <string name="package_name">com.gaofang.commission</string>
+    <string name="custom_url_scheme">com.gaofang.commission</string>
+</resources>
